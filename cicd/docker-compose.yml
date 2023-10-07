@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+
+  # 私服 nexus 搭建
+  easy-nexus:
+    env_file: .env
+    image: sonatype/nexus3:${NEXUS_VERSION}
+    container_name: easy-nexus
+    restart: always
+    privileged: true
+    user: root
+    volumes:
+      # 数据存储配置
+      - '${NEXUS_PATH}/data:/nexus-data'
+      # 日志配置文件
+      - '${NEXUS_PATH}/log:/nexus-data/log'
+      # Nexus JVM 内存相关配置,存储空间相关配置等
+      #- '${NEXUS_PATH}/config/nexus.vmoptions:/opt/sonatype/nexus/bin/nexus.vmoptions'
+      # Nexus 相关的常规配置（IP、端口号 等配置）
+      #- '${NEXUS_PATH}/config/nexus.vmoptions:/opt/sonatype/nexus/etc/nexus-default.properties'
+    ports:
+      - '8081:8081'
+    networks:
+      - easy-network
+
+
+  # 官网文档： https://www.jenkins.io/doc/book/installing/docker/
+  # duckerhub官方镜像： https://hub.docker.com/_/jenkins/tags
+  easy-jenkins:
+    env_file:
+      - .env
+      - 'env/jenkins.env'
+    # 请注意镜像和版本问题：https://www.jenkins.io/download/，不建议使用 jenkins 这个镜像，官方推荐使用 jenkins/jenkins 这个镜像
+    image: jenkins/jenkins:${JENKINS_VERSION}
+    container_name: easy-jenkins
+    restart: always
+    privileged: true
+    # 指定容器中运行应用的用户名root(避免容器内总是出现权限不足的问题,这里是测试使用,开发中不推荐使用 root)
+    user: root
+    volumes:
+      # 手动离线升级可采用下载 jenkins.war 进入容器中替换文件 /usr/share/jenkins/jenkins.war,如果容器内无权限,则通过宿主机直接去/docker/overlay2/...下替换
+      # Jenkins 工作目录,主要存储数据( /user/data/jenkins，安装后初始化密码也在此处 /usr/data/jenkins（这里是我挂在的路径）/secrets/initialAdminPassword )这里可能会有权限问题
+      - '${JENKINS_PATH}:/var/jenkins_home'
+      # 让容器使用和服务器同样的时间设置（以上环境变量中已经设置了时区，这里可以不需要设置）
+      - '/etc/localtime:/etc/localtime'
+      # 将主机的Docker套接字装入容器中，这将允许Jenkins容器使用主机的Docker守护进程来构建映像并运行容器。
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      # 容器内可共享宿主机的 docker
+      - '/usr/bin/docker:/usr/bin/docker'
+      # 容器内享有 宿主机的docker-compose 环境
+      - '/usr/local/bin/docker-compose:/usr/local/bin/docker-compose'
+      # Jenkins 中已经内置了 OpenJdk 无需设置 java 环境
+      # 将宿主机的Maven挂载共享给容器内使用,${MVN_HOME} 宿主机的环境变量
+      # 启动后进入容器执行 echo "export PATH=$MVN_HOME/bin:$PATH" >> /etc/profile && source /etc/profile
+      - '${MVN_HOME}:${MVN_HOME}'
+      # 同时宿主机的 Maven 仓库挂载给容器使用（settings.xml 文件中配置的仓库地址）
+      - '${REPOSITORY}/maven/:${REPOSITORY}/maven/'
+      # 将宿主机的node环境挂在到容器内部,分享给容器使用,${NODE_HOME} 宿主机的环境变量
+      # 启动后进入容器执行 echo "export PATH=$NODE_HOME/bin:$PATH" >> /etc/profile && source /etc/profile
+      - '${NODE_HOME}:${NODE_HOME}'
+    ports:
+      # 管理系统访问的端口号
+      - '8980:8080'
+      - '5000:5000'
+    networks:
+      - easy-network
+
+
+# 自定义网桥 easy-network
+networks:
+  easy-network:
+    # 启动时不自动创建网桥,需要提前手动创建 网桥 docker network create -d bridge easy-network
+    external: true
+    driver: bridge

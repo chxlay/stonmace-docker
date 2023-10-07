@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+
+  # 内网穿透服务端 参考：https://www.cnblogs.com/chxlay/p/15116103.html
+  easy-frps:
+    # 构建 Docker 镜像
+    build:
+      context: ./frp
+      dockerfile: Dockerfile
+      args:
+        - VERSION=${FRP_VERSION}
+    image: easy-frp
+    container_name: easy-frps
+    restart: always
+    # 启动命令
+    command: './frps -c ./conf/frps.ini'
+    volumes:
+      # 配置文件路径挂载
+      - '${FRP_PATH}/conf/:/var/frp/conf/'
+    # 为了方便，我这里就直接配置 host 模式网络了
+    network_mode: 'host'
+
+
+  # 内网穿透客户端 参考：https://www.cnblogs.com/chxlay/p/15116103.html
+  easy-frpc:
+    # 构建 Docker 镜像
+    build:
+      context: ./frp
+      dockerfile: Dockerfile
+      args:
+        - VERSION=${FRP_VERSION}
+    image: easy-frp
+    container_name: easy-frpc
+    restart: always
+    # 启动命令
+    command: './frpc -c ./conf/frpc.ini'
+    volumes:
+      # 配置文件路径挂载
+      - '${FRP_PATH}/conf/:/var/frp/conf/'
+    # 为了方便，我这里就直接配置 host 模式网络了
+    network_mode: 'host'
